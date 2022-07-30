@@ -14,6 +14,10 @@ from torchvision import transforms, datasets
 from util import load, save
 from model import Network
 
+from sklearn.metrics import confusion_matrix
+import seaborn as sn
+import pandas as pd
+
 
 ## Training
 def train(args):
@@ -115,6 +119,9 @@ def eval(args):
     # plt.colorbar()
     # plt.show()
 
+    y_pred = []
+    y_true = []
+
     # eval
     with torch.no_grad():
         net.eval()
@@ -130,6 +137,9 @@ def eval(args):
             pred = fn_pred(output)
             pred_num = pred.max(dim=1)
 
+            y_pred = np.concatenate((y_pred, pred_num.indices.detach().cpu().numpy()), axis=0)
+            y_true = np.concatenate((y_true, label.detach().cpu().numpy()), axis=0)
+
             loss = fn_loss(output, label)
             acc = fn_acc(pred, label)
 
@@ -139,7 +149,7 @@ def eval(args):
             print('TEST: BATCH %04d/%04d | LOSS %.4f | ACC %.4f' %
                   (batch, num_batch, np.mean(loss_arr), np.mean(acc_arr)))
 
-            # image plot
+            # Plot Image
             fig = plt.figure(figsize=(12, 6))
             cols, rows = 4, 2
             for i in range(1, cols * rows + 1):
@@ -156,6 +166,15 @@ def eval(args):
             if not os.path.exists(img_dir):
                 os.makedirs(img_dir)
             plt.savefig(f"{img_dir}/output{batch}.jpg")
+
+    # Draw confusion matrix
+    classes= ('0', '1', '2', '3', '4', '5', '6', '7', '8', '9')
+    cf_matrix = confusion_matrix(y_true, y_pred)
+    df_cm = pd.DataFrame(cf_matrix/np.sum(cf_matrix) * 10, index=[i for i in classes])
+    plt.figure(figsize=(12, 7))
+    plt.yticks(rotation=90)
+    sn.heatmap(df_cm, annot=True)
+    plt.savefig(f"{img_dir}/confusion_matrix.png")
 
 
 if __name__ == "__main__":
