@@ -2,6 +2,7 @@
 import os
 import argparse
 
+import matplotlib.pyplot as plt
 import numpy as np
 
 import torch
@@ -81,7 +82,7 @@ def eval(args):
     ckpt_dir = args.ckpt_dir
     log_dir = args.log_dir
     data_dir = args.data_dir
-
+    img_dir = args.img_dir
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
     # MNIST 데이터 셋 불러오기
@@ -105,7 +106,16 @@ def eval(args):
 
     net, optim = load(ckpt_dir=ckpt_dir, net=net, optim=optim)
 
-    # Training
+
+    # check conv
+    # print(f"net conv1 weight : {net.conv1.weight}, shape : {net.conv1.weight.shape}")
+    # weight = net.conv1.weight.detach().cpu().numpy()
+    # print(f"weight : {weight.shape}")
+    # plt.imshow(weight[0, 0, :, :], 'jet')
+    # plt.colorbar()
+    # plt.show()
+
+    # eval
     with torch.no_grad():
         net.eval()
 
@@ -118,6 +128,7 @@ def eval(args):
 
             output = net(input)
             pred = fn_pred(output)
+            pred_num = pred.max(dim=1)
 
             loss = fn_loss(output, label)
             acc = fn_acc(pred, label)
@@ -127,6 +138,24 @@ def eval(args):
 
             print('TEST: BATCH %04d/%04d | LOSS %.4f | ACC %.4f' %
                   (batch, num_batch, np.mean(loss_arr), np.mean(acc_arr)))
+
+            # image plot
+            fig = plt.figure(figsize=(12, 6))
+            cols, rows = 4, 2
+            for i in range(1, cols * rows + 1):
+                sample_idx = torch.randint(high=min(len(label), batch_size), size=(1,))
+                sample_idx = sample_idx.item()
+                _pred = pred_num.indices[sample_idx]
+                img, _label = input[sample_idx], label[sample_idx]
+
+                fig.add_subplot(rows, cols, i)
+                plt.title(f"label : {_label}, pred : {_pred}")
+                plt.axis('off')
+                plt.imshow(img.detach().cpu().numpy().squeeze(), cmap='gray')
+
+            if not os.path.exists(img_dir):
+                os.makedirs(img_dir)
+            plt.savefig(f"{img_dir}/output{batch}.jpg")
 
 
 if __name__ == "__main__":
@@ -144,7 +173,7 @@ if __name__ == "__main__":
     parser.add_argument("--log_dir", default='./log', type=str, dest="log_dir")
 
     parser.add_argument("--data_dir", default='./', type=str, dest="data_dir")
-
+    parser.add_argument("--img_dir", default='./output', type=str, dest="img_dir")
     args = parser.parse_args()
 
     if args.mode == "train":
